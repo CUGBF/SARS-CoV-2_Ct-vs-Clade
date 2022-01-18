@@ -2503,7 +2503,6 @@ ggbetweenstats(
   scale_color_manual(values = c(
     "dodgerblue2",
     "#E31A1C",
-    "green4",
     "#6A3D9A"
   ))
 ```
@@ -2649,7 +2648,6 @@ ggbetweenstats(
   scale_color_manual(values = c(
     "dodgerblue2",
     "#E31A1C",
-    "green4",
     "#6A3D9A"
   ))
 ```
