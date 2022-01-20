@@ -2668,6 +2668,61 @@ Concurrently, the Ct values for the RNase P control did not exhibit a statistica
 
 These results suggests that there is no difference in the viral load of 21A (Delta) relative to the other clades.
 
+## Appendix
+
+```{r}
+ltd_clade_symptomatic_w_gamma <- clade_collection_diagnostics_symptomatic %>%
+  filter(clade %in% c(
+    "21A (Delta)",
+    "20I (Alpha, V1)",
+    "20J (Gamma, V3)",
+    "20G"
+  )) %>%
+  mutate(clade = factor(clade,
+    levels = c(
+      "20G",
+      "20I (Alpha, V1)",
+      "20J (Gamma, V3)",
+      "21A (Delta)"
+    )
+  )) %>%
+  select(testkit_id, clade, ct_RNaseP, ct_N) %>%
+  ungroup()
+
+glimpse(ltd_clade_symptomatic_w_gamma)
+```
+
+```{r warning = FALSE, fig.width = 7, fig.height = 5, fig.align='center'}
+# With our palette
+ggbetweenstats(
+  data = ltd_clade_symptomatic_w_gamma,
+  x = clade,
+  y = ct_N,
+  type = "nonparametric",
+  xlab = "Clade",
+  ylab = "Ct value",
+  var.equal = FALSE,
+  plot.type = "boxviolin",
+  pairwise.comparisons = FALSE,
+  results.subtitle = FALSE,
+  centrality.plotting = FALSE,
+  bf.message = FALSE,
+  p.adjust.method = "holm",
+  ggtheme = ggpubr::theme_pubclean()
+) +
+  scale_color_manual(values = c(
+    "dodgerblue2",
+    "#E31A1C",
+    "green4",
+    "#6A3D9A"
+  )) +
+  labs(title = "N gene") +
+  scale_y_continuous(
+    breaks = get_breaks(by = 5, from = 0),
+    limits = c(5, 35)
+  )
+```
+
 ```{r include = FALSE}
 rm(
   clade_collection_diagnostics_symptomatic,
@@ -2676,6 +2731,7 @@ rm(
   median_RNAseP_20I_symptomatic,
   median_RNAseP_20G_symptomatic,
   median_RNAseP_20J_symptomatic,
-  median_RNAseP_21A_symptomatic
+  median_RNAseP_21A_symptomatic,
+  ltd_clade_symptomatic_w_gamma
 )
 ```
