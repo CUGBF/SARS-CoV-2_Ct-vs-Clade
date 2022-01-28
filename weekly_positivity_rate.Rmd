@@ -1,0 +1,347 @@
+---
+title: "Weekly COVID19 Positivity Rate"
+author: "Stevin Wilson"
+date: "12/21/2021"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    number_sections: no
+    df_print: paged
+    highlight: kate
+  bookdown::pdf_document2:
+    toc: yes
+    latex_engine: lualatex
+    number_sections: yes
+    highlight: kate
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message = FALSE, include = FALSE}
+library(tidyverse)
+options(dplyr.summarise.inform = FALSE)
+library(lubridate)
+library(readxl)
+library(DBI)
+library(ggpubr)
+library(plotly)
+library(ggstatsplot)
+library(car)
+library(rstatix)
+library(zoo)
+library(kableExtra)
+set.seed(100)
+```
+
+# Outline
+
+This script is used to plot weekly positivity rate for COVID19 based on the diagnostics results from Clemson University's testing program.
+```{r include = FALSE}
+db_build <- dbConnect(RSQLite::SQLite(), "deidentifiedDB_v2021.12.08.sqlite")
+sample_collection_table <- dbReadTable(db_build, "sample_collection")
+dbDisconnect(db_build)
+```
+Samples are classified into different `order_priority` categories based on self-reported symptoms/exposure
+
+```{r}
+unique(sample_collection_table$order_priority)
+```
+
+```{r}
+unique(sample_collection_table$performing_facility)
+```
+
+All possible categories for results status as as follows:
+
+```{r}
+unique(sample_collection_table$rymedi_result)
+```
+
+## Exclude Sample without `patient_id` or `collection_date`
+
+
+```{r}
+sample_collection_without_missing <- sample_collection_table %>%
+  filter(
+    !(is.na(collection_date) | is.na(patient_id)),
+    performing_facility %in% c(
+      "CLEMSON UNIVERSITY",
+      "CLEMSON UNIVERSITY PERSONNEL",
+      "CLEMSON COMMUNITY"
+    ),
+    rymedi_result %in% c("POSITIVE", "NEGATIVE")
+  ) %>%
+  mutate(
+    collection_date = date(as_datetime(collection_date)),
+    result_date = as_date(result_date),
+    collection_week = lubridate::week(collection_date)
+  ) %>%
+  filter(collection_date >= "2021-01-01") %>%
+  select(
+    testkit_id, rymedi_result, collection_week, collection_date, population, order_priority, gender, patient_id
+  ) %>%
+  arrange(collection_date, rymedi_result)
+
+glimpse(sample_collection_without_missing)
+```
+
+## Only retain the first COVID19 +ve sample from a patient in a period of 30 days
+
+```{r}
+positive_samples <- sample_collection_without_missing %>%
+  filter(rymedi_result == "POSITIVE")
+
+glimpse(positive_samples)
+```
+
+Number of such multi-test possibly-single-infection samples :
+```{r}
+multi_positive_patients <- positive_samples %>%
+  group_by(patient_id) %>%
+  filter(n() > 1) %>%
+  arrange(patient_id, collection_date) %>%
+  group_split()
+
+length(multi_positive_patients)
+```
+
+```{r}
+multi_positive_patients[1:2]
+```
+
+```{r}
+testkit_ids_to_exclude <- c()
+
+for (n in seq_along(multi_positive_patients)) {
+  temp_tbl <- multi_positive_patients[[n]] %>%
+    arrange(collection_date)
+  diff_days <- diff(temp_tbl[["collection_date"]])
+
+  for (m in seq_along(diff_days)) {
+    if (diff_days[m] <= 30) {
+      temp_c_date <- temp_tbl$testkit_id[m + 1]
+      testkit_ids_to_exclude <- c(
+        testkit_ids_to_exclude,
+        temp_c_date
+      )
+    }
+  }
+}
+
+glimpse(testkit_ids_to_exclude)
+```
+
+`sample_collection` table after excluding above `testkit_id`s
+
+```{r}
+sample_collection_without_repeats <- sample_collection_without_missing %>%
+  filter(!(testkit_id %in% testkit_ids_to_exclude))
+
+glimpse(sample_collection_without_repeats)
+```
+
+Patients with reinfection event with gap of more than 30 days between positive tests are retained :
+
+```{r}
+sample_collection_without_repeats %>%
+  filter(rymedi_result == "POSITIVE") %>%
+  group_by(patient_id) %>%
+  filter(n() > 1) %>%
+  arrange(patient_id, collection_date) %>%
+  relocate(patient_id, collection_date) %>%
+  select(-c(testkit_id))
+```
+
+Information regarding the week number for samples collection date
+
+```{r}
+week_dates_info <- sample_collection_without_missing %>%
+  select(collection_week, collection_date) %>%
+  distinct() %>%
+  group_by(collection_week) %>%
+  mutate(
+    week_start = min(collection_date),
+    week_end = max(collection_date),
+    collection_week = as_factor(collection_week)
+  ) %>%
+  select(-c(collection_date)) %>%
+  distinct()
+
+glimpse(week_dates_info)
+```
+
+Positivity rate in different `order_priority` categories over the year 2021
+
+```{r}
+sample_collection_without_repeats %>%
+  group_by(
+    collection_week,
+    rymedi_result,
+    order_priority
+  ) %>%
+  summarize(count = n()) %>%
+  mutate(
+    count = replace(count, count == 0, 1),
+    order_priority = factor(order_priority,
+      levels = c(
+        "SYMPTOMATIC",
+        "ONE DAY",
+        "EXPOSED",
+        "SURVEILLANCE"
+      )
+    )
+  ) %>%
+  pivot_wider(
+    names_from = rymedi_result,
+    values_from = count
+  ) %>%
+  mutate(
+    POSITIVE = replace(POSITIVE, is.na(POSITIVE), 0),
+    NEGATIVE = replace(NEGATIVE, is.na(NEGATIVE), 0),
+    TOTAL = NEGATIVE + POSITIVE,
+    POSITIVITY = round((POSITIVE / TOTAL) * 100, 2),
+    collection_week = as_factor(collection_week)
+  ) %>%
+  full_join(week_dates_info,
+    by = "collection_week"
+  ) %>%
+  relocate(
+    collection_week, week_start, week_end, order_priority,
+    TOTAL, POSITIVE, NEGATIVE, POSITIVITY
+  ) %>%
+  arrange(collection_week, order_priority) %>%
+  kbl() %>%
+  kable_classic_2(
+    full_width = F,
+    latex_options = c(
+      "hold_position",
+      "striped"
+    )
+  )
+```
+
+```{r}
+fig_data <- sample_collection_without_repeats %>%
+  filter(order_priority %in% c(
+    "SYMPTOMATIC",
+    "EXPOSED",
+    "SURVEILLANCE"
+  )) %>%
+  group_by(
+    collection_week,
+    rymedi_result,
+    order_priority
+  ) %>%
+  summarize(count = n()) %>%
+  mutate(
+    count = replace(count, count == 0, 1),
+    order_priority = factor(order_priority,
+      levels = c(
+        "SYMPTOMATIC",
+        "EXPOSED",
+        "SURVEILLANCE"
+      )
+    )
+  ) %>%
+  pivot_wider(
+    names_from = rymedi_result,
+    values_from = count
+  ) %>%
+  mutate(
+    POSITIVE = replace(POSITIVE, is.na(POSITIVE), 0),
+    NEGATIVE = replace(NEGATIVE, is.na(NEGATIVE), 0),
+    TOTAL = NEGATIVE + POSITIVE,
+    POSITIVE = replace(POSITIVE, POSITIVE == 0, 1),
+    TOTAL = replace(TOTAL, TOTAL == 0, 1)
+  ) %>%
+  select(-c(NEGATIVE)) %>%
+  pivot_longer(!c(
+    collection_week,
+    order_priority
+  ),
+  names_to = "STATUS", values_to = "COUNT"
+  ) %>%
+  mutate(STATUS = factor(STATUS,
+    levels = c(
+      "TOTAL",
+      "POSITIVE"
+    )
+  ))
+
+glimpse(fig_data)
+```
+
+```{r message = FALSE, warning = FALSE, fig.width= 7, fig.height= 5}
+p <- fig_data %>%
+  mutate(
+    STATUS = as.character(STATUS),
+    STATUS = dplyr::recode(STATUS,
+      `POSITIVE` = "Number of Positive Cases",
+      `TOTAL` = "Total Number of Tests"
+    ),
+    STATUS = fct_rev(STATUS)
+  ) %>%
+  ggbarplot(
+    x = "collection_week",
+    y = "COUNT",
+    fill = "STATUS",
+    alpha = 0.8,
+    sorting = "none",
+    format.scale = TRUE,
+    yscale = "log10",
+    title = "New COVID-19 Cases in the Clemson Area",
+    subtitle = "2021 Data",
+    xlab = "Week Number",
+    ylab = "Count",
+    position = position_dodge(preserve = "single")
+  )
+
+p <- facet(p,
+  facet.by = c("order_priority"),
+  nrow = 3
+)
+
+ggpar(p,
+  legend = "bottom",
+  legend.title = "",
+  ggtheme = ggstatsplot::theme_ggstatsplot()
+)
+```
+
+```{r}
+fig_data <- fig_data %>%
+  left_join(week_dates_info %>%
+    mutate(collection_week = as.double(collection_week)),
+  by = "collection_week"
+  ) %>%
+  relocate(collection_week, week_start, week_end) %>%
+  mutate(
+    STATUS = as.character(STATUS),
+    STATUS = dplyr::recode(STATUS,
+      `POSITIVE` = "Number of Positive Cases",
+      `TOTAL` = "Total Number of Tests"
+    ),
+    STATUS = fct_rev(STATUS)
+  )
+
+fig_data %>%
+  arrange(collection_week, order_priority, STATUS) %>%
+  kbl() %>%
+  kable_classic_2(
+    full_width = F,
+    latex_options = c(
+      "hold_position",
+      "striped"
+    )
+  )
+```
+
+```{r}
+fig_data %>%
+  write_csv("data_for_fig3.csv")
+```

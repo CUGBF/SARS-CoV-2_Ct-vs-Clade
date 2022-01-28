@@ -553,6 +553,35 @@ clade_collection_diagnostics %>%
   )
 ```
 
+## Data Accessibility
+
+```{r}
+data_access_table <- clade_collection_diagnostics %>%
+  mutate(
+    ct_N = round(ct_N, 3),
+    ct_RNaseP = round(ct_RNaseP, 3),
+    sample_id = str_sub(testkit_id,
+      start = 8L
+    )
+  ) %>%
+  select(sample_id, collection_date, order_priority, clade, ct_N, ct_RNaseP) %>%
+  rename(
+    `Mean Ct : N gene` = "ct_N",
+    `Mean Ct : RNase P gene` = "ct_RNaseP"
+  ) %>%
+  arrange(collection_date, order_priority, clade, `Mean Ct : N gene`)
+
+glimpse(data_access_table)
+```
+
+```{r}
+write_csv(
+  data_access_table,
+  "data_accessibility_table.csv"
+)
+```
+
+
 In order to not affect our assumption of phylogenetic independence, we are only going to compare Ct values for variants at terminal nodes of NextClade tree. We extract data from `clade_collection_diagnostics` table and create a new table `limited_clade_collection_diagnostics` with only data for the following clades:
 
         21A (Delta)
@@ -879,15 +908,15 @@ selected_clades_lineage_table <- selected_clades_lineage_table %>%
   left_join(imp_sc_info,
     by = "testkit_id"
   ) %>%
-  mutate(collection_period = as.yearmon(collection_date)) %>%
-  select(testkit_id, sample_id, collection_period, order_priority, collection_date, dhec_accession, genbank_accession, gisaid_epi_isl, clade, lineage) %>%
-  arrange(collection_period, order_priority, sample_id)
+  select(testkit_id, sample_id, order_priority, collection_date, dhec_accession, genbank_accession, gisaid_epi_isl, clade, lineage) %>%
+  arrange(collection_date, order_priority, sample_id)
 
 glimpse(selected_clades_lineage_table)
 ```
 
 ```{r}
 selected_clades_lineage_table <- selected_clades_lineage_table %>%
+  mutate(collection_period = as.yearmon(collection_date)) %>%
   select(-c(testkit_id, collection_date))
 ```
 
@@ -901,24 +930,6 @@ selected_clades_lineage_table %>%
 glimpse(selected_clades_lineage_table)
 ```
 
-### Final Formatting
-
-```{r}
-selected_clades_lineage_table %>%
-  mutate(collection_period = as.character(collection_period)) %>%
-  rename(
-    `Sample ID` = "sample_id",
-    `Collection Period` = "collection_period",
-    `Priority Status` = "order_priority",
-    `SC DHEC Accession` = "dhec_accession",
-    `GenBank Accession` = "genbank_accession",
-    `GISAID Accession` = "gisaid_epi_isl",
-    Clade = "clade",
-    Lineage = "lineage"
-  ) %>%
-  write_csv("supplementary_table_1.csv")
-```
-
 ```{r}
 selected_clades_lineage_table %>%
   mutate(
@@ -929,6 +940,27 @@ selected_clades_lineage_table %>%
     ), as_factor)
   ) %>%
   summary()
+```
+
+### Final Formatting
+
+```{r}
+selected_clades_lineage_table <- selected_clades_lineage_table %>%
+  mutate(collection_period = as.character(collection_period)) %>%
+  rename(
+    `Sample ID` = "sample_id",
+    `Collection Period` = "collection_period",
+    `Priority Status` = "order_priority",
+    `SC DHEC Accession` = "dhec_accession",
+    `GenBank Accession` = "genbank_accession",
+    `GISAID Accession` = "gisaid_epi_isl",
+    Clade = "clade",
+    Lineage = "lineage"
+  )
+```
+
+```{r}
+write_csv(selected_clades_lineage_table, "supplementary_table_1.csv")
 ```
 
 ## N gene
