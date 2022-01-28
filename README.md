@@ -5,6 +5,7 @@ Kylie L. King<sup>1</sup>, Stevin Wilson<sup>2</sup>, Justin M. Napolitano<sup>1
 COVID-19 variants Alpha and Delta have substantially higher viral loads in saliva compared to more historic lineages. This trend is especially observed in healthy, young individuals who are pre- or asymptomatic, which provides evidence to the high transmissibility and rapid spread of these new variants.
 
 **`Statistical_analysis_Ct_delta_gamma_alpha.Rmd` contains details regarding the statistical analysis and R code used for the article.**
+**`weekly_positivity_rate.Rmd` contains code used to generate Figure 3 in the article.**
 
 ### Affiliations
 
