@@ -392,6 +392,35 @@ ggplot(
   )
 ```
 
+```{r warning = FALSE,include = FALSE}
+tiff("Figure1.tiff", units="in", width=8, height=5, res=300)
+ggplot(
+  monthly_clade_date,
+  aes(
+    x = collection_period,
+    y = count,
+    fill = clade
+  )
+) +
+  geom_bar(colour = "black", position = "stack", stat = "identity") +
+  scale_x_yearmon(breaks = monthly_clade_date$collection_period) +
+  scale_fill_manual(values = color_tbl %>%
+    filter(clade %in% monthly_clade_date$clade) %>%
+    pull(color)) +
+  labs(
+    y = "Number of Sequenced Samples",
+    x = "Sample Collection Period"
+  ) +
+  theme_pubclean() +
+  theme(
+    legend.position = "right",
+    legend.title = element_blank(),
+    legend.key.size = unit(0.5, "cm"),
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)
+  )
+dev.off()
+```
+
 ```{r warning = FALSE, fig.width = 7, fig.height = 5, fig.align='center'}
 ggplot(
   monthly_clade_date,
@@ -1153,8 +1182,9 @@ ct_N_stats_plot <- ggbetweenstats(
   )
 ```
 
-### Welch's ANOVA
+### Welch's ANOVA 
 
+(with assumption that ANOVA is robust for data that is not too skewed)
 ```{r}
 welch_anova_test(
   formula = ct_N ~ clade,

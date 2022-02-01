@@ -313,6 +313,43 @@ ggpar(p,
 )
 ```
 
+```{r message = FALSE, warning = FALSE, include = FALSE}
+tiff("Figure3.tiff", units="in", width=9, height=6, res=300)
+p <- fig_data %>%
+  mutate(
+    STATUS = as.character(STATUS),
+    STATUS = dplyr::recode(STATUS,
+      `POSITIVE` = "Number of Positive Cases",
+      `TOTAL` = "Total Number of Tests"
+    ),
+    STATUS = fct_rev(STATUS)
+  ) %>%
+  ggbarplot(
+    x = "collection_week",
+    y = "COUNT",
+    fill = "STATUS",
+    alpha = 0.8,
+    sorting = "none",
+    format.scale = TRUE,
+    yscale = "log10",
+    xlab = "Week Number",
+    ylab = "Count",
+    position = position_dodge(preserve = "single")
+  )
+
+p <- facet(p,
+  facet.by = c("order_priority"),
+  nrow = 3
+)
+
+ggpar(p,
+  legend = "bottom",
+  legend.title = "",
+  ggtheme = ggstatsplot::theme_ggstatsplot()
+)
+dev.off()
+```
+
 ```{r}
 fig_data <- fig_data %>%
   left_join(week_dates_info %>%
