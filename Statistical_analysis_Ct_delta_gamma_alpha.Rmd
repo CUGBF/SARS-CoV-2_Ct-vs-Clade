@@ -32,6 +32,7 @@ library(car)
 library(rstatix)
 library(zoo)
 library(kableExtra)
+library(moments)
 set.seed(100)
 ```
 
@@ -1036,6 +1037,18 @@ shapiro.test(res_aov_n$residuals)
 
 *We will perform Kruskal-Wallis Test to compare the Ct values for N gene between the different SARS-CoV-2 clades.*
 
+##### Skewness
+
+```{r}
+skewness(limited_clade_collection_diagnostics$ct_N)
+```
+
+##### Kurtosis
+
+```{r}
+kurtosis(limited_clade_collection_diagnostics$ct_N)
+```
+
 #### Equality of Variances
 
 ##### Box Plot
@@ -1806,6 +1819,18 @@ shapiro.test(res_aov_n_surveillance$residuals)
 ```
 
 *Since p-value \< 0.05, we reject the null hypothesis. The data not follow a normal distribution.*
+
+##### Skewness
+
+```{r}
+skewness(limited_clade_collection_diagnostics_surveillance$ct_N)
+```
+
+##### Kurtosis
+
+```{r}
+kurtosis(limited_clade_collection_diagnostics_surveillance$ct_N)
+```
 
 #### Equality of Variances
 
