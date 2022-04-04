@@ -1,0 +1,205 @@
+---
+title: "Viral Load on Fig2"
+author: "Stevin Wilson"
+date: "4/3/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning = FALSE, message = FALSE}
+library(tidyverse)
+library(car)
+library(rstatix)
+library(moments)
+library(ggstatsplot)
+set.seed(100)
+```
+
+### Loading `data_accessibility_table.csv`
+
+```{r}
+da_tbl <- readr::read_csv('data_accessibility_table.csv',
+                          show_col_types = FALSE)
+
+dplyr::glimpse(da_tbl)
+```
+
+```{r}
+da_tbl <- da_tbl %>%
+  dplyr::filter(clade %in% c("21A (Delta)", 
+                             "20I (Alpha, V1)", 
+                             "20J (Gamma, V3)", 
+                             "20G"
+                             )) %>%
+  dplyr::mutate(clade = factor(clade,
+                levels = c( "20G", 
+                            "20I (Alpha, V1)", 
+                            "20J (Gamma, V3)", 
+                            "21A (Delta)"
+                            )))
+
+glimpse(da_tbl)
+```
+
+
+```{r}
+# Ct = -1.461*ln(viral_load)+33.188
+
+## viral_load = exp(((33.188 - Ct)/(1.461)))
+
+da_tbl_vl <- da_tbl %>%
+  dplyr::mutate(
+    `Viral Load` = exp(((33.188 - `Mean Ct : N gene`)/(1.461)))
+    ) %>%
+  dplyr::relocate(`Viral Load`, .after = `Mean Ct : N gene`)
+
+glimpse(da_tbl_vl)
+```
+
+Writing table to a csv file
+
+```{r}
+write_csv(da_tbl_vl,
+          'data_accessibility_table_viral_load.csv')
+```
+
+##### Histogram of Residuals
+
+```{r warning = FALSE, fig.width = 7, fig.height = 5, fig.align='center'}
+res_aov_n <- aov(`Viral Load` ~ clade,
+  data = da_tbl_vl
+)
+
+hist(res_aov_n$residuals)
+```
+
+The histogram is severely right skewed.
+
+
+##### Shapiro-Wilk
+
+> Null Hypothesis: Data comes from a normal distribution.
+
+> Alternate Hypothesis: Data does not come from a normal distribution.
+
+```{r}
+shapiro.test(res_aov_n$residuals)
+```
+
+*Since p-value \< 0.05, we reject the null hypothesis. The data does not follow a normal distribution.*
+
+*We will perform Kruskal-Wallis Test to compare the Ct values for N gene between the different SARS-CoV-2 clades.*
+
+```{r warning = FALSE, message = FALSE, fig.width = 7, fig.height = 5, fig.align='center'}
+# With our palette
+(ct_N_stats_plot <- ggbetweenstats(
+  data = da_tbl_vl,
+  x = clade,
+  y = `Viral Load`,
+  type = "nonparametric",
+  xlab = "Clade",
+  ylab = "Viral Load (vial copies per ul (cpu))",
+  var.equal = FALSE,
+  plot.type = "boxviolin",
+  pairwise.comparisons = FALSE,
+  results.subtitle = FALSE,
+  centrality.plotting = FALSE,
+  bf.message = FALSE,
+  p.adjust.method = "holm",
+  ggtheme = ggpubr::theme_pubr()
+) +
+  scale_color_manual(values = c(
+    "dodgerblue2",
+    "#E31A1C",
+    "green4",
+    "#6A3D9A"
+  )) +
+  labs(title = "Viral Load - All Samples") +
+  scale_y_log10())
+```
+
+```{r include = FALSE}
+ggsave('fig2_viral_load.png',
+       ct_N_stats_plot)
+```
+
+```{r warning = FALSE, message = FALSE, fig.width = 7, fig.height = 5, fig.align='center'}
+
+da_tbl_vl_surv <- da_tbl_vl %>%
+  dplyr::filter(order_priority == "SURVEILLANCE")
+
+# With our palette
+(ct_N_stats_plot_surv <- ggbetweenstats(
+  data = da_tbl_vl_surv,
+  x = clade,
+  y = `Viral Load`,
+  type = "nonparametric",
+  xlab = "Clade",
+  ylab = "Viral Load (vial copies per ul (cpu))",
+  var.equal = FALSE,
+  plot.type = "boxviolin",
+  pairwise.comparisons = FALSE,
+  results.subtitle = FALSE,
+  centrality.plotting = FALSE,
+  bf.message = FALSE,
+  p.adjust.method = "holm",
+  ggtheme = ggpubr::theme_pubr()
+) +
+  scale_color_manual(values = c(
+    "dodgerblue2",
+    "#E31A1C",
+    "green4",
+    "#6A3D9A"
+  )) +
+  labs(title = "Viral Load - Only SURVEILLANCE Samples") +
+  scale_y_log10())
+```
+
+```{r include = FALSE}
+ggsave('fig2_viral_load_surveillance.png',
+       ct_N_stats_plot_surv)
+```
+
+```{r warning = FALSE, message = FALSE, fig.width = 7, fig.height = 5, fig.align='center'}
+
+da_tbl_vl_sym <- da_tbl_vl %>%
+  dplyr::filter(order_priority == "SYMPTOMATIC")
+
+# With our palette
+(ct_N_stats_plot_sym <- ggbetweenstats(
+  data = da_tbl_vl_sym,
+  x = clade,
+  y = `Viral Load`,
+  type = "nonparametric",
+  xlab = "Clade",
+  ylab = "Viral Load (vial copies per ul (cpu))",
+  var.equal = FALSE,
+  plot.type = "boxviolin",
+  pairwise.comparisons = FALSE,
+  results.subtitle = FALSE,
+  centrality.plotting = FALSE,
+  bf.message = FALSE,
+  p.adjust.method = "holm",
+  ggtheme = ggpubr::theme_pubr()
+) +
+  scale_color_manual(values = c(
+    "dodgerblue2",
+    "#E31A1C",
+    "green4",
+    "#6A3D9A"
+  )) +
+  labs(title = "Viral Load - Only SYMPTOMATIC Samples") +
+  scale_y_log10())
+```
+
+```{r include = FALSE}
+ggsave('fig2_viral_load_symptomatic.png',
+       ct_N_stats_plot_sym)
+```
+
+```{r}
+sessionInfo()
+```
